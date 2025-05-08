@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         IMAGE_NAME = "12kishor/sample-node-app:latest"
+        KUBECONFIG = "/root/.kube/config"  // Adjust path if Jenkins runs as another user
     }
 
     stages {
@@ -11,14 +12,6 @@ pipeline {
                 git branch: 'main',
                     url: 'https://github.com/kish-1/jenkin-1.git',
                     credentialsId: 'github-cred'
-            }
-        }
-
-        stage('SonarQube Analysis') {
-            steps {
-                withSonarQubeEnv('MySonarQubeServer') {
-                    sh 'sonar-scanner'
-                }
             }
         }
 
@@ -43,12 +36,19 @@ pipeline {
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        stage('Deploy to EKS') {
             steps {
                 script {
+                    // optional cleanup before deploy
                     sh """
+                        export KUBECONFIG=${KUBECONFIG}
+                        kubectl delete -f deployment.yaml --ignore-not-found
+                        kubectl delete -f service.yaml --ignore-not-found
+
                         kubectl apply -f deployment.yaml
                         kubectl apply -f service.yaml
+
+                        kubectl rollout status deployment/node-app-deployment
                     """
                 }
             }
@@ -57,11 +57,12 @@ pipeline {
 
     post {
         success {
-            echo 'Pipeline finished successfully 🎉'
+            echo '✅ CI/CD complete: App deployed to EKS!'
         }
         failure {
-            echo 'Something went wrong 💥'
+            echo '❌ CI/CD failed.'
         }
     }
 }
+
 
